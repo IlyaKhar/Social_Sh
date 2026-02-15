@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"socialsh/backend/internal/models"
 )
 
@@ -40,8 +41,30 @@ func NewGallerySQLRepo(db *sql.DB) *GallerySQLRepo {
 //	for rows.Next() { rows.Scan(&item.ID, &item.Category, &item.Title, &item.Image, &item.Order) }
 //	rows.Err()
 func (r *GallerySQLRepo) ListByCategory(category string) ([]models.GalleryItem, error) {
-	
-	return nil, nil
+	query := `SELECT id, category, title, image, sort_order
+	           FROM gallery_items WHERE category = $1 ORDER BY sort_order ASC`
+
+	rows, err := r.db.Query(query, category)
+	if err != nil {
+		return nil, fmt.Errorf("gallery.ListByCategory query: %w", err)
+	}
+	defer rows.Close()
+
+	var items []models.GalleryItem
+	for rows.Next() {
+		var item models.GalleryItem
+		err := rows.Scan(&item.ID, &item.Category, &item.Title, &item.Image, &item.Order)
+		if err != nil {
+			return nil, fmt.Errorf("gallery.ListByCategory scan: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("gallery.ListByCategory rows: %w", err)
+	}
+
+	return items, nil
 }
 
 // ────────────────────────────────────────────────
@@ -60,8 +83,30 @@ func (r *GallerySQLRepo) ListByCategory(category string) ([]models.GalleryItem, 
 //	query := `SELECT id, category, title, image, sort_order
 //	           FROM gallery_items ORDER BY sort_order ASC`
 func (r *GallerySQLRepo) ListAll() ([]models.GalleryItem, error) {
-	// TODO: реализовать
-	return nil, nil
+	query := `SELECT id, category, title, image, sort_order
+	           FROM gallery_items ORDER BY sort_order ASC`
+
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("gallery.ListAll query: %w", err)
+	}
+	defer rows.Close()
+
+	var items []models.GalleryItem
+	for rows.Next() {
+		var item models.GalleryItem
+		err := rows.Scan(&item.ID, &item.Category, &item.Title, &item.Image, &item.Order)
+		if err != nil {
+			return nil, fmt.Errorf("gallery.ListAll scan: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("gallery.ListAll rows: %w", err)
+	}
+
+	return items, nil
 }
 
 // Create — добавить элемент галереи.
@@ -81,7 +126,13 @@ func (r *GallerySQLRepo) ListAll() ([]models.GalleryItem, error) {
 //	           VALUES ($1, $2, $3, $4) RETURNING id`
 //	r.db.QueryRow(query, item.Category, item.Title, item.Image, item.Order).Scan(&item.ID)
 func (r *GallerySQLRepo) Create(item *models.GalleryItem) error {
-	// TODO: реализовать
+	query := `INSERT INTO gallery_items (category, title, image, sort_order)
+	           VALUES ($1, $2, $3, $4) RETURNING id`
+
+	err := r.db.QueryRow(query, item.Category, item.Title, item.Image, item.Order).Scan(&item.ID)
+	if err != nil {
+		return fmt.Errorf("gallery.Create: %w", err)
+	}
 	return nil
 }
 
@@ -104,8 +155,20 @@ func (r *GallerySQLRepo) Create(item *models.GalleryItem) error {
 //	           RETURNING id, category, title, image, sort_order`
 //	r.db.QueryRow(query, ...).Scan(...)
 func (r *GallerySQLRepo) Update(id string, item *models.GalleryItem) (*models.GalleryItem, error) {
-	// TODO: реализовать
-	return nil, nil
+	query := `UPDATE gallery_items
+	           SET category = $1, title = $2, image = $3, sort_order = $4
+	           WHERE id = $5
+	           RETURNING id, category, title, image, sort_order`
+
+	var updated models.GalleryItem
+	err := r.db.QueryRow(query, item.Category, item.Title, item.Image, item.Order, id).Scan(
+		&updated.ID, &updated.Category, &updated.Title, &updated.Image, &updated.Order,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("gallery.Update: %w", err)
+	}
+
+	return &updated, nil
 }
 
 // Delete — удалить элемент галереи по id.
@@ -117,6 +180,21 @@ func (r *GallerySQLRepo) Update(id string, item *models.GalleryItem) (*models.Ga
 //
 // TODO: скопируй products.Delete и замени таблицу на gallery_items.
 func (r *GallerySQLRepo) Delete(id string) error {
-	// TODO: реализовать
+	query := `DELETE FROM gallery_items WHERE id = $1`
+
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("gallery.Delete: %w", err)
+	}
+
+	// Проверяем, что реально удалили строку
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("gallery.Delete rows affected: %w", err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("gallery.Delete: элемент галереи с id=%s не найден", id)
+	}
+
 	return nil
 }
