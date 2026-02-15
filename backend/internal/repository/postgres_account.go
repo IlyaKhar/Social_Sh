@@ -2,7 +2,9 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"socialsh/backend/internal/models"
+	"strings"
 )
 
 // AccountSQLRepo — реализация AccountRepository поверх PostgreSQL.
@@ -43,8 +45,15 @@ func NewAccountSQLRepo(db *sql.DB) *AccountSQLRepo {
 //	if err != nil { return nil, fmt.Errorf("account.GetUserByID: %w", err) }
 //	return &u, nil
 func (r *AccountSQLRepo) GetUserByID(id string) (*models.User, error) {
-	// TODO: реализовать
-	return nil, nil
+	query := `SELECT id, email, name, password_hash, role 
+				FROM users WHERE id = $1`
+
+	var u models.User
+	err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Role)
+	if err != nil {
+		return nil, fmt.Errorf("account.GetUserByID: %w", err)
+	}
+	return &u, nil
 }
 
 // GetUserByEmail — найти юзера по email (для логина).
@@ -62,8 +71,15 @@ func (r *AccountSQLRepo) GetUserByID(id string) (*models.User, error) {
 //	query := `SELECT id, email, name, password_hash, role FROM users WHERE email = $1`
 //	... (аналогично GetUserByID)
 func (r *AccountSQLRepo) GetUserByEmail(email string) (*models.User, error) {
-	// TODO: реализовать
-	return nil, nil
+	query := `SELECT id, email, name, password_hash, role FROM users WHERE email = $1`
+
+	var u models.User
+
+	err := r.db.QueryRow(query, email).Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Role)
+	if err != nil {
+		return nil, fmt.Errorf("users.GetByEmail: %w", err)
+	}
+	return &u, nil
 }
 
 // CreateUser — зарегистрировать нового юзера.
@@ -88,7 +104,13 @@ func (r *AccountSQLRepo) GetUserByEmail(email string) (*models.User, error) {
 //	if err != nil { return fmt.Errorf("account.CreateUser: %w", err) }
 //	return nil
 func (r *AccountSQLRepo) CreateUser(user *models.User) error {
-	// TODO: реализовать
+	query := `INSERT INTO users (email, name, password_hash, role)
+	           VALUES ($1, $2, $3, $4) RETURNING id`
+
+	err := r.db.QueryRow(query, user.Email, user.Name, user.PasswordHash, user.Role).Scan(&user.ID)
+	if err != nil {
+		return fmt.Errorf("account.CreateUser: %w", err)
+	}
 	return nil
 }
 
@@ -143,8 +165,39 @@ func (r *AccountSQLRepo) CreateUser(user *models.User) error {
 //
 // TODO: реализовать по паттерну выше
 func (r *AccountSQLRepo) UpdateUser(id string, req *models.UpdateProfileRequest) (*models.User, error) {
-	// TODO: реализовать
-	return nil, nil
+	setClauses := []string{}
+	args := []interface{}{}
+	argIdx := 1
+
+	if req.Name != nil {
+		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argIdx))
+		args = append(args, *req.Name)
+		argIdx++
+	}
+
+	if req.Email != nil {
+		setClauses = append(setClauses, fmt.Sprintf("email = $%d", argIdx))
+		args = append(args, *req.Email)
+		argIdx++
+	}
+
+	if len(setClauses) == 0 {
+		return r.GetUserByID(id)
+	}
+
+	query := fmt.Sprintf(
+		"UPDATE users SET %s WHERE id = $%d RETURNING id, email, name, password_hash, role",
+		strings.Join(setClauses, ", "), argIdx,
+	)
+	args = append(args, id)
+
+	var u models.User
+	err := r.db.QueryRow(query, args...).Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Role)
+	if err != nil {
+		return nil, fmt.Errorf("account.UpdateUser: %w", err)
+	}
+
+	return &u, nil
 }
 
 // ────────────────────────────────────────────────
@@ -195,6 +248,59 @@ func (r *AccountSQLRepo) UpdateUser(id string, req *models.UpdateProfileRequest)
 //
 // TODO: реализовать по паттерну выше
 func (r *AccountSQLRepo) ListOrdersByUser(id string) ([]models.Order, error) {
-	// TODO: реализовать
-	return nil, nil
+	// Этап 1: Получаем все заказы юзера
+	ordersQuery := `SELECT id, user_id, status, total, created_at, updated_at
+	                 FROM orders WHERE user_id = $1 ORDER BY created_at DESC`
+
+	rows, err := r.db.Query(ordersQuery, id)
+	if err != nil {
+		return nil, fmt.Errorf("account.ListOrdersByUser query orders: %w", err)
+	}
+	defer rows.Close()
+
+	orders := []models.Order{}
+	for rows.Next() {
+		var o models.Order
+		err := rows.Scan(&o.ID, &o.UserID, &o.Status, &o.Total, &o.CreatedAt, &o.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("account.ListOrdersByUser scan order: %w", err)
+		}
+		// Инициализируем Items как пустой слайс для каждого заказа
+		o.Items = []models.OrderItem{}
+		orders = append(orders, o)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("account.ListOrdersByUser rows: %w", err)
+	}
+
+	// Этап 2: Для каждого заказа подгружаем позиции (order_items)
+	itemsQuery := `SELECT id, order_id, product_id, title, price, quantity
+	                FROM order_items WHERE order_id = $1`
+
+	for i := range orders {
+		itemRows, err := r.db.Query(itemsQuery, orders[i].ID)
+		if err != nil {
+			return nil, fmt.Errorf("account.ListOrdersByUser query items: %w", err)
+		}
+
+		for itemRows.Next() {
+			var item models.OrderItem
+			err := itemRows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.Title, &item.Price, &item.Quantity)
+			if err != nil {
+				itemRows.Close()
+				return nil, fmt.Errorf("account.ListOrdersByUser scan item: %w", err)
+			}
+			orders[i].Items = append(orders[i].Items, item)
+		}
+
+		if err := itemRows.Err(); err != nil {
+			itemRows.Close()
+			return nil, fmt.Errorf("account.ListOrdersByUser itemRows: %w", err)
+		}
+
+		itemRows.Close()
+	}
+
+	return orders, nil
 }

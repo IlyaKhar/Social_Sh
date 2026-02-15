@@ -12,6 +12,10 @@ import (
 func GetGalleryItems(c *fiber.Ctx) error {
 	category := c.Query("category", "")
 
+	if category == "" {
+		category = intro / tattoo / 
+	}
+
 	items, _ := Repo.Gallery.ListByCategory(category)
 
 	return c.JSON(fiber.Map{"items": items})

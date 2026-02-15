@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"socialsh/backend/internal/models"
 )
 
@@ -45,8 +46,16 @@ func NewPageSQLRepo(db *sql.DB) *PageSQLRepo {
 //	if err != nil { return nil, fmt.Errorf("pages.GetBySlug: %w", err) }
 //	return &p, nil
 func (r *PageSQLRepo) GetBySlug(slug string) (*models.Page, error) {
-	// TODO: реализовать
-	return nil, nil
+	query := `SELECT slug, title, content FROM pages WHERE slug = $1 LIMIT 1` 
+
+	var p models.Page
+
+	err := r.db.QueryRow(query, slug).Scan(&p.Slug, &p.Title, &p.Content)
+
+	if err != nil {
+		return nil, fmt.Errorf("pages.GetBySlug: %w", err)
+	}
+	return &p, nil
 }
 
 // ────────────────────────────────────────────────
@@ -67,8 +76,29 @@ func (r *PageSQLRepo) GetBySlug(slug string) (*models.Page, error) {
 //	rows, err := r.db.Query(query)
 //	...
 func (r *PageSQLRepo) ListAll() ([]models.Page, error) {
-	// TODO: реализовать
-	return nil, nil
+	query := `SELECT slug, title, content FROM pages ORDER BY slug` 
+
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("pages.ListAll query: %w", err)
+	}
+	defer rows.Close()
+
+	var pages []models.Page
+	for rows.Next() {
+		var p models.Page
+
+		err := rows.Scan(&p.Slug, &p.Title, &p.Content)
+		if err != nil {
+			return nil, fmt.Errorf("pages.ListAll scan: %w", err)
+		}
+		pages = append(pages, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("pages.ListAll rows: %w", err)
+	}
+	return pages, nil
 }
 
 // Update — обновить содержимое страницы по slug.
@@ -100,6 +130,16 @@ func (r *PageSQLRepo) ListAll() ([]models.Page, error) {
 //	if err != nil { return nil, fmt.Errorf("pages.Update: %w", err) }
 //	return &updated, nil
 func (r *PageSQLRepo) Update(slug string, page *models.Page) (*models.Page, error) {
-	// TODO: реализовать
-	return nil, nil
+	query := `UPDATE pages SET title = $1, content = $2
+	           WHERE slug = $3
+	           RETURNING slug, title, content`
+
+	var updated models.Page
+	err := r.db.QueryRow(query, page.Title, page.Content, slug).Scan(
+			    &updated.Slug, &updated.Title, &updated.Content,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("pages.Update query: %w", err)
+	}
+	return &updated, nil
 }
