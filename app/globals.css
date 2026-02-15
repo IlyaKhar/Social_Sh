@@ -1,0 +1,132 @@
+:root{
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #6b6b6b;
+  --line: rgba(10, 10, 10, 0.14);
+  --soft: rgba(10, 10, 10, 0.06);
+
+  --container: 1200px;
+  --gutter: 1.25rem;
+
+  --font: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif);
+  --mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+
+  --h1: clamp(2.25rem, 5vw, 4.25rem);
+  --h2: clamp(1.5rem, 3vw, 2.25rem);
+  --text: 1rem;
+  --small: 0.875rem;
+
+  --radius: 0.75rem;
+  --shadow: 0 10px 30px rgba(0,0,0,0.06);
+}
+
+*{ box-sizing: border-box; }
+
+html, body{
+  height: 100%;
+  overflow: hidden;
+}
+
+body{
+  margin: 0;
+  font-family: var(--font);
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+a{
+  color: inherit;
+  text-decoration: none;
+}
+
+button{
+  font: inherit;
+}
+
+::selection{
+  background: rgba(10,10,10,0.14);
+}
+
+.main{
+  min-height: 100svh;
+}
+
+.shell{
+  width: min(calc(var(--container) + 320px), calc(100% - (var(--gutter) * 2)));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 3rem;
+  align-items: center;
+  padding: 3rem 0 2.5rem;
+}
+
+.sideHeader{
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+@media (max-width: 900px){
+  .shell{
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+  .sideHeader{
+    justify-content: flex-start;
+  }
+}
+
+.skipLink{
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.5rem;
+  transform: translateY(-200%);
+  transition: transform 140ms ease;
+  z-index: 9999;
+}
+.skipLink:focus{
+  transform: translateY(0);
+}
+
+.section{
+  padding: 3rem 0;
+}
+
+.kicker{
+  font-size: var(--small);
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+}
+
+.h1{
+  margin: 0.5rem 0 0;
+  font-size: var(--h1);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.h2{
+  margin: 0;
+  font-size: var(--h2);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.lead{
+  margin: 1rem 0 0;
+  color: var(--muted);
+  max-width: 52ch;
+}
+

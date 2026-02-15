@@ -1,0 +1,32 @@
+# Зависимости
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+
+# Build
+build/
+dist/
+
+# Env-файлы (секреты не пушим!)
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go
+backend/tmp/
+backend/bin/

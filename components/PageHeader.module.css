@@ -1,0 +1,99 @@
+.wrapper{
+  display: grid;
+  gap: 1.1rem;
+  align-items: flex-start;
+}
+
+.inner{
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.brandTitle{
+  font-size: clamp(2.7rem, 4.4vw, 3.9rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.menuBlock{
+  display: block;
+  margin-left: 0.4rem;
+}
+
+.menuColumn{
+  display: grid;
+  gap: 0.15rem;
+}
+
+.menuPrimary,
+.menuPrimaryActive{
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+
+.menuPrimaryActive{
+  font-weight: 600;
+}
+
+.menuSecondary,
+.menuSecondaryActive{
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
+
+.menuSecondaryActive{
+  font-weight: 600;
+}
+
+.policies{
+  margin-top: 0.4rem;
+}
+
+.account,
+.accountActive{
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  margin-top: 0;
+}
+
+.accountActive{
+  font-weight: 600;
+}
+
+.subList{
+  margin-left: 2.5rem;
+  margin-bottom: 0.35rem;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.subLink,
+.subLinkActive{
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.subLinkActive{
+  font-weight: 600;
+}
+
+.subSpacer{
+  height: 0.5rem;
+}
+
+@media (max-width: 900px){
+  .inner{
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+  .brandTitle{
+    font-size: clamp(2.1rem, 9vw, 2.8rem);
+    letter-spacing: 0.1em;
+  }
+}
+

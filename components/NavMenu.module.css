@@ -1,0 +1,144 @@
+.desktop{
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.group{
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.groupTitle{
+  font-size: 0.8rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+}
+
+.groupItems{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.link,
+.linkActive{
+  font-size: 0.9rem;
+  padding: 0.3rem 0.1rem;
+  border-bottom: 1px solid transparent;
+  transition: border-color 120ms ease, color 120ms ease;
+  color: var(--muted);
+}
+.link:hover{
+  color: var(--fg);
+}
+.linkActive{
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+.burger{
+  display: none;
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--fg);
+}
+
+.overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.32);
+  z-index: 200;
+  display: grid;
+  place-items: end center;
+  padding: 1rem;
+}
+
+.dialog{
+  width: min(720px, 100%);
+  border-radius: var(--radius);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.dialogHeader{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.dialogTitle{
+  font-family: var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.close{
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+}
+
+.dialogBody{
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.mGroup{
+  padding: 0.75rem;
+  border: 1px solid var(--soft);
+  border-radius: 0.75rem;
+}
+
+.mTitle{
+  font-size: 0.8rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+  margin-bottom: 0.5rem;
+}
+
+.mItems{
+  display: grid;
+  gap: 0.25rem;
+}
+
+.mLink{
+  padding: 0.6rem 0.6rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.mLink:hover{
+  background: var(--soft);
+  border-color: var(--line);
+}
+
+@media (max-width: 900px){
+  .desktop{
+    display: none;
+  }
+  .burger{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
