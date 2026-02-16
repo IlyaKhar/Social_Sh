@@ -1,7 +1,11 @@
 .wrapper{
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 1.1rem;
   align-items: flex-start;
+  justify-content: flex-start;
+  position: relative;
+  padding: 0;
 }
 
 .inner{
@@ -53,6 +57,14 @@
   margin-top: 0.4rem;
 }
 
+.bottomLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 2rem;
+  align-items: flex-start;
+}
+
 .account,
 .accountActive{
   font-size: 0.95rem;
@@ -85,15 +97,251 @@
   height: 0.5rem;
 }
 
-@media (max-width: 900px){
+@media (max-width: 1200px){
+  .brandTitle{
+    font-size: clamp(2rem, 5vw, 3.5rem);
+  }
+}
+
+@media (max-width: 1000px){
+  .wrapper{
+    position: relative;
+    top: auto;
+    transform: none;
+    height: auto;
+    padding: 0;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 860px){
+  .wrapper{
+    align-items: center;
+    width: 100%;
+  }
   .inner{
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1.25rem;
+    align-items: center;
+    width: 100%;
   }
   .brandTitle{
-    font-size: clamp(2.1rem, 9vw, 2.8rem);
+    text-align: center;
+  }
+  .menuBlock{
+    width: 100%;
+    margin-left: 0;
+  }
+  .menuColumn{
+    align-items: center;
+    width: 100%;
+  }
+  .menuPrimary,
+  .menuPrimaryActive{
+    text-align: center;
+  }
+  .subList{
+    margin-left: 0;
+    align-items: center;
+  }
+  .subLink,
+  .subLinkActive{
+    text-align: center;
+  }
+  .bottomLinks{
+    align-items: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px){
+  .wrapper{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    top: auto;
+    transform: none;
+    align-self: center;
+    min-height: auto;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0;
+  }
+  
+  .inner{
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    text-align: center;
+    width: 100%;
+    margin: 0 auto;
+  }
+  
+  .brandTitle{
+    font-size: clamp(1.75rem, 8vw, 2.5rem);
     letter-spacing: 0.1em;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .menuBlock{
+    margin-left: 0;
+    margin-right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  
+  .menuColumn{
+    align-items: center;
+    width: 100%;
+  }
+  
+  .menuPrimary,
+  .menuPrimaryActive{
+    text-align: center;
+    width: 100%;
+  }
+  
+  .subList{
+    align-items: center;
+    margin-left: 0;
+  }
+  
+  .subLink,
+  .subLinkActive{
+    text-align: center;
+  }
+  
+  .bottomLinks{
+    margin-top: 2rem;
+    align-items: center;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (max-width: 600px){
+  .wrapper{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    top: auto;
+    transform: none;
+    align-self: center;
+    min-height: auto;
+    width: 100%;
+  }
+  
+  .inner{
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .brandTitle{
+    font-size: clamp(1.5rem, 7vw, 2rem);
+    text-align: center;
+    width: 100%;
+  }
+  
+  .menuBlock{
+    align-items: center;
+    width: 100%;
+  }
+  
+  .menuColumn{
+    align-items: center;
+    width: 100%;
+  }
+  
+  .menuPrimary,
+  .menuPrimaryActive{
+    font-size: 0.875rem;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .subList{
+    margin-left: 0;
+    align-items: center;
+  }
+  
+  .subLink,
+  .subLinkActive{
+    font-size: 0.8rem;
+    text-align: center;
+  }
+  
+  .account,
+  .accountActive{
+    font-size: 0.875rem;
+    text-align: center;
+  }
+  
+  .bottomLinks{
+    align-items: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px){
+  .wrapper{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    top: auto;
+    transform: none;
+    align-self: center;
+    min-height: auto;
+    width: 100%;
+  }
+  
+  .inner{
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .brandTitle{
+    font-size: clamp(1.25rem, 6vw, 1.75rem);
+    text-align: center;
+    width: 100%;
+  }
+  
+  .menuBlock{
+    align-items: center;
+    width: 100%;
+  }
+  
+  .menuColumn{
+    align-items: center;
+    width: 100%;
+  }
+  
+  .menuPrimary,
+  .menuPrimaryActive{
+    font-size: 0.75rem;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .bottomLinks{
+    align-items: center;
+    width: 100%;
   }
 }
 

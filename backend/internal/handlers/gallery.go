@@ -3,7 +3,7 @@ package handlers
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"socialsh/backend/internal/repository"
+	"socialsh/backend/internal/models"
 )
 
 // GetGalleryItems отдает изображения для галереи.
@@ -12,12 +12,17 @@ import (
 func GetGalleryItems(c *fiber.Ctx) error {
 	category := c.Query("category", "")
 
-	if category == "" {
-		category = intro / tattoo / 
+	items, err := Repo.Gallery.ListByCategory(category)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "ошибка при получении элементов галереи",
+		})
 	}
 
-	items, _ := Repo.Gallery.ListByCategory(category)
+	// Если items == nil, возвращаем пустой массив (не ошибка)
+	if items == nil {
+		items = []models.GalleryItem{}
+	}
 
 	return c.JSON(fiber.Map{"items": items})
 }
-

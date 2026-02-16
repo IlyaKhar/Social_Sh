@@ -11,6 +11,7 @@ type ProductRepository interface {
 	// Публичные
 	List(newOnly, saleOnly bool, page, limit int) ([]models.Product, error)
 	GetBySlug(slug string) (*models.Product, error)
+	Search(query string, page, limit int) ([]models.Product, error) // поиск по названию
 	// Админские
 	ListAll() ([]models.Product, error)
 	GetByID(id string) (*models.Product, error)

@@ -17,14 +17,18 @@ func Register(app *fiber.App, jwtSecret, refreshSecret string) {
 	// ──── 1. Публичные роуты (без авторизации) ────
 
 	// Магазин — список товаров с фильтрацией через query-параметры
-	api.Get("/products", handlers.GetProducts)      // GET /api/products?new=true&sale=true&page=1&limit=20
-	api.Get("/products/:slug", handlers.GetProduct) // GET /api/products/hoodie-black → один товар по slug
+	api.Get("/products", handlers.GetProducts)           // GET /api/products?new=true&sale=true&page=1&limit=20
+	api.Get("/products/search", handlers.SearchProducts)   // GET /api/products/search?q=hoodie&page=1&limit=20
+	api.Get("/products/:slug", handlers.GetProduct)       // GET /api/products/hoodie-black → один товар по slug
 
 	// Галерея — фотки с фильтром по категории
 	api.Get("/gallery", handlers.GetGalleryItems) // GET /api/gallery?category=intro
 
 	// Инфо-страницы — оплата, доставка, возврат, контакты
 	api.Get("/pages/:slug", handlers.GetPage) // GET /api/pages/payment | delivery | returns | contacts
+
+	// Заказы — создание заказа (публичный, но можно добавить защиту)
+	api.Post("/orders", handlers.CreateOrder) // POST /api/orders
 
 	// ──── 2. Auth-роуты (регистрация/логин/рефреш) ────
 	authRoutes(api, jwtSecret, refreshSecret)
@@ -87,4 +91,8 @@ func adminRoutes(api fiber.Router, jwtSecret string) {
 	// ── Инфо-страницы ──
 	adm.Get("/pages", handlers.AdminListPages)          // список всех страниц
 	adm.Patch("/pages/:slug", handlers.AdminUpdatePage) // обновить контент страницы
+
+	// ── Загрузка файлов ──
+	adm.Post("/upload/product", handlers.UploadProductImage)  // загрузить изображение товара
+	adm.Post("/upload/gallery", handlers.UploadGalleryImage)  // загрузить изображение галереи
 }

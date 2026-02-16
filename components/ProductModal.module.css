@@ -1,0 +1,306 @@
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.modalContent {
+  position: relative;
+  background: var(--color-white);
+  max-width: 1200px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid var(--color-black);
+}
+
+.closeButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--color-black);
+  color: var(--color-white);
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.closeButton:hover {
+  opacity: 0.7;
+}
+
+.productGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.imageSection {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--color-gray-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.imageContainer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.image {
+  object-fit: cover;
+}
+
+.imagePlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 4rem;
+}
+
+.navButton {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3.5rem;
+  height: 3.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-black);
+  border: 2px solid var(--color-black);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+}
+
+.navButton:hover {
+  background: var(--color-black);
+  color: var(--color-white);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.navButton:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.navButton:first-of-type {
+  left: 1.5rem;
+}
+
+.navButton:last-of-type {
+  right: 1.5rem;
+}
+
+.imageIndicators {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  z-index: 5;
+}
+
+.indicator {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--color-white);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.indicator.active {
+  background: var(--color-white);
+}
+
+.details {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  max-height: 90vh;
+}
+
+.badges {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.badge,
+.badgeSale {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.badgeSale {
+  background: var(--color-white);
+  color: var(--color-black);
+  border: 1px solid var(--color-black);
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.description {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-gray);
+  margin: 0;
+}
+
+.price {
+  font-size: 2.5rem;
+  font-weight: 600;
+}
+
+.addButton {
+  padding: 1rem 2rem;
+  background: var(--color-black);
+  color: var(--color-white);
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  width: 100%;
+}
+
+.addButton:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.addButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .productGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .imageSection {
+    aspect-ratio: 1;
+  }
+
+  .details {
+    padding: 1.5rem;
+    max-height: none;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .price {
+    font-size: 2rem;
+  }
+
+  .navButton {
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.25rem;
+  }
+  
+  .navButton:first-of-type {
+    left: 1rem;
+  }
+  
+  .navButton:last-of-type {
+    right: 1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .modal {
+    padding: 0;
+  }
+
+  .modalContent {
+    max-height: 100vh;
+    border: none;
+  }
+
+  .closeButton {
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.25rem;
+  }
+
+  .details {
+    padding: 1rem;
+  }
+
+  .title {
+    font-size: 1.25rem;
+  }
+
+  .price {
+    font-size: 1.75rem;
+  }
+  
+  .navButton {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 1.1rem;
+  }
+  
+  .navButton:first-of-type {
+    left: 0.75rem;
+  }
+  
+  .navButton:last-of-type {
+    right: 0.75rem;
+  }
+}

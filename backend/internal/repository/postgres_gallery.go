@@ -41,10 +41,25 @@ func NewGallerySQLRepo(db *sql.DB) *GallerySQLRepo {
 //	for rows.Next() { rows.Scan(&item.ID, &item.Category, &item.Title, &item.Image, &item.Order) }
 //	rows.Err()
 func (r *GallerySQLRepo) ListByCategory(category string) ([]models.GalleryItem, error) {
-	query := `SELECT id, category, title, image, sort_order
-	           FROM gallery_items WHERE category = $1 ORDER BY sort_order ASC`
+	var query string
+	var args []interface{}
 
-	rows, err := r.db.Query(query, category)
+	if category == "" {
+		// Если категория не указана — возвращаем все элементы
+		query = `SELECT id, category, title, image, sort_order
+		         FROM gallery_items 
+		         ORDER BY sort_order ASC`
+		// args остаётся пустым
+	} else {
+		// Если категория указана — фильтруем по ней
+		query = `SELECT id, category, title, image, sort_order
+		         FROM gallery_items 
+		         WHERE category = $1 
+		         ORDER BY sort_order ASC`
+		args = []interface{}{category}
+	}
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("gallery.ListByCategory query: %w", err)
 	}

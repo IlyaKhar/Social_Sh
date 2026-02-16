@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	"socialsh/backend/internal/models"
 )
 
@@ -249,12 +251,24 @@ func (r *ProductSQLRepo) Create(product *models.Product) error {
 // Update — обновить существующий товар по id.
 //
 // Как читается:
-//  1. Сериализуем images → JSON.
+//  1. Сериализуем images → JSON (только если images не nil и не пустой).
 //  2. UPDATE ... WHERE id = $9 RETURNING ... — обновляем строку и сразу
 //     получаем обновлённые данные обратно (не делаем второй SELECT).
 //  3. Scan в новый Product и возвращаем указатель.
 //  4. Если строка не найдена (id не существует), вернётся sql.ErrNoRows.
 func (r *ProductSQLRepo) Update(id string, product *models.Product) (*models.Product, error) {
+	// Если images не передан (nil) или пустой массив, не обновляем его
+	// Сначала получаем текущий товар, чтобы сохранить существующие images
+	current, err := r.GetByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("products.Update get current: %w", err)
+	}
+
+	// Если images не передан или пустой, используем текущие
+	if product.Images == nil || len(product.Images) == 0 {
+		product.Images = current.Images
+	}
+
 	imagesJSON, err := json.Marshal(product.Images)
 	if err != nil {
 		return nil, fmt.Errorf("products.Update marshal images: %w", err)
@@ -343,6 +357,69 @@ func (r *ProductSQLRepo) Delete(id string) error {
 // 	}
 // 	return &p, nil
 // }
+
+// Search — поиск товаров по названию (без учёта регистра, частичное совпадение).
+//
+// Как читается:
+//  1. Используем ILIKE для поиска без учёта регистра в PostgreSQL.
+//  2. Ищем в title и description: WHERE title ILIKE '%query%' OR description ILIKE '%query%'
+//  3. Добавляем пагинацию (LIMIT/OFFSET).
+//  4. Сканируем результаты аналогично List().
+func (r *ProductSQLRepo) Search(query string, page, limit int) ([]models.Product, error) {
+	// Экранируем спецсимволы для ILIKE (простая защита)
+	searchTerm := "%" + strings.ReplaceAll(query, "%", "\\%") + "%"
+	offset := (page - 1) * limit
+
+	querySQL := `SELECT id, slug, title, description, price, currency, images, is_new, is_on_sale
+	              FROM products
+	              WHERE title ILIKE $1 OR description ILIKE $1
+	              ORDER BY 
+	                CASE 
+	                  WHEN title ILIKE $2 THEN 1
+	                  WHEN description ILIKE $2 THEN 2
+	                  ELSE 3
+	                END,
+	                id DESC
+	              LIMIT $3 OFFSET $4`
+
+	// $2 — точное совпадение в начале для приоритета
+	exactStart := strings.ReplaceAll(query, "%", "\\%") + "%"
+
+	rows, err := r.db.Query(querySQL, searchTerm, exactStart, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("products.Search query: %w", err)
+	}
+	defer rows.Close()
+
+	var products []models.Product
+	for rows.Next() {
+		var p models.Product
+		var imagesJSON []byte
+
+		err := rows.Scan(
+			&p.ID, &p.Slug, &p.Title, &p.Description,
+			&p.Price, &p.Currency, &imagesJSON,
+			&p.IsNew, &p.IsOnSale,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("products.Search scan: %w", err)
+		}
+
+		if imagesJSON != nil {
+			if err := json.Unmarshal(imagesJSON, &p.Images); err != nil {
+				return nil, fmt.Errorf("products.Search unmarshal images: %w", err)
+			}
+		}
+
+		products = append(products, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("products.Search rows: %w", err)
+	}
+
+	return products, nil
+}
 
 // NOTE: когда понадобится pq.Array для text[] колонок —
 // сделай go get github.com/lib/pq и добавь импорт.

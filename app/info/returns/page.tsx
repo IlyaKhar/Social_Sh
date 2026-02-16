@@ -1,16 +1,32 @@
 import { Container } from '@/components/Container'
+import { api } from '@/lib/api'
 
-export default function ReturnsInfoPage() {
+export default async function ReturnsInfoPage() {
+  let page = null
+  let error: string | null = null
+
+  try {
+    page = await api.getPage('returns')
+  } catch (e) {
+    error = e instanceof Error ? e.message : 'Ошибка загрузки страницы'
+    console.error('Failed to load page:', e)
+  }
+
   return (
     <section className="section">
       <Container size="wide">
         <div className="kicker">информация</div>
-        <h1 className="h2">Возврат</h1>
-        <p className="lead">
-          TODO: условия возврата. Эндпоинт Go Fiber: <code>/api/pages/returns</code>.
-        </p>
+        <h1 className="h2">{page?.title || 'Возврат'}</h1>
+        {error ? (
+          <div style={{ color: 'var(--muted)', padding: '2rem 0' }}>{error}</div>
+        ) : (
+          <div
+            className="lead"
+            style={{ marginTop: '1rem', whiteSpace: 'pre-wrap' }}
+            dangerouslySetInnerHTML={{ __html: page?.content || 'Информация о возврате скоро появится.' }}
+          />
+        )}
       </Container>
     </section>
   )
 }
-

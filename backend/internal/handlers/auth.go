@@ -11,6 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"socialsh/backend/internal/models"
+	"socialsh/backend/internal/utils"
 )
 
 // ──── Хелперы ────
@@ -117,6 +118,12 @@ func SignUp(jwtSecret, refreshSecret string) fiber.Handler {
 		}
 
 		if err := Repo.Account.CreateUser(user); err != nil {
+			// Проверяем на duplicate key (email уже занят)
+			if utils.IsDuplicateKeyError(err) {
+				return c.Status(409).JSON(fiber.Map{
+					"error": "пользователь с таким email уже существует",
+				})
+			}
 			return c.Status(500).JSON(fiber.Map{"error": "не удалось создать пользователя"})
 		}
 
