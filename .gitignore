@@ -30,3 +30,6 @@ Thumbs.db
 # Go
 backend/tmp/
 backend/bin/
+
+# Загруженные файлы (не коммитим изображения)
+backend/uploads/

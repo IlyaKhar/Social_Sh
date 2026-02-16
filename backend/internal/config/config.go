@@ -8,7 +8,6 @@ import (
 )
 
 // Config — базовый конфиг сервера.
-// TODO: добавь сюда все, что нужно (DSN БД, секреты JWT и т.п.).
 type Config struct {
 	Port          string
 	DBHost        string
@@ -38,7 +37,7 @@ func Load() *Config {
 		DBPort:        LoadEnv("DB_PORT", "5432"),
 		DBUser:        LoadEnv("DB_USER", "postgres"),
 		DBPassword:    LoadEnv("DB_PASSWORD", ""),
-		DBName:        LoadEnv("DB_NAME", "postgres"), // дефолт "postgres", но должен быть "socialsh" из .env
+		DBName:        LoadEnv("DB_NAME", "postgres"),
 		JwtSecret:     LoadEnv("JWT_SECRET", "not found"),
 		RefreshSecret: LoadEnv("REFRESH_SECRET", "not found"),
 		BaseUrl:       LoadEnv("BASE_URL", "http://localhost:3000"),
