@@ -1,7 +1,9 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { CartButton } from './CartButton'
 import styles from './PageHeader.module.css'
 
 function isActive(pathname: string, href: string) {
@@ -11,6 +13,12 @@ function isActive(pathname: string, href: string) {
 
 export function PageHeader() {
   const pathname = usePathname() ?? '/'
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    setIsLoggedIn(!!token)
+  }, [])
 
   const shopSectionActive = pathname.startsWith('/shop')
   const gallerySectionActive = pathname.startsWith('/gallery')
@@ -56,17 +64,6 @@ export function PageHeader() {
             <Link className={gallerySectionActive ? styles.menuPrimaryActive : styles.menuPrimary} href="/gallery">
               ГАЛЕРЕЯ
             </Link>
-            {gallerySectionActive ? (
-              <div className={styles.subList}>
-                <span className={styles.subLink}>ИНТРО</span>
-                <span className={styles.subLink}>ИНТРО 2</span>
-                <span className={styles.subLink}>ИНТРО 3</span>
-                <span className={styles.subLink}>ТАТУ</span>
-                <span className={styles.subLink}>ТОКИО</span>
-                <span className={styles.subLink}>ПРОХОР</span>
-                <span className={styles.subLink}>НАЗАР</span>
-              </div>
-            ) : null}
 
             {/* ИНФОРМАЦИЯ */}
             <Link className={infoSectionActive ? styles.menuPrimaryActive : styles.menuPrimary} href="/info/payment">
@@ -98,12 +95,24 @@ export function PageHeader() {
         </div>
       </div>
 
-      <Link
-        className={isActive(pathname, '/account') ? styles.accountActive : styles.account}
-        href="/account"
-      >
-        ЛИЧНЫЙ КАБИНЕТ
-      </Link>
+      <div className={styles.bottomLinks}>
+        <CartButton />
+        {isLoggedIn ? (
+          <Link
+            className={isActive(pathname, '/account') ? styles.accountActive : styles.account}
+            href="/account"
+          >
+            ЛИЧНЫЙ КАБИНЕТ
+          </Link>
+        ) : (
+          <Link
+            className={isActive(pathname, '/login') ? styles.accountActive : styles.account}
+            href="/login"
+          >
+            ВХОД
+          </Link>
+        )}
+      </div>
     </div>
   )
 }

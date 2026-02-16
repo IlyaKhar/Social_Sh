@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+
+	_ "github.com/lib/pq" // PostgreSQL драйвер
 )
 
 func OpenPostgres(dsn string) (*sql.DB, error) {

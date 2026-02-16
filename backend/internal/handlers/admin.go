@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"database/sql"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 
 	"socialsh/backend/internal/models"
+	"socialsh/backend/internal/utils"
 )
 
 // ═══════════════════════════════════════════════════════════════
@@ -80,9 +84,14 @@ func AdminCreateProduct(c *fiber.Ctx) error {
 	//   - Записать сгенерированный id в product.ID
 	//   - Вернуть nil если ок, error если дубликат slug или ошибка БД
 	if err := Repo.Products.Create(&product); err != nil {
-		// TODO: если err != nil — проверь на duplicate key (slug уже занят) → 409 Conflict
-		// Иначе 500.
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{ //500
+		// Проверяем на duplicate key (slug уже занят) → 409 Conflict
+		if utils.IsDuplicateKeyError(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": utils.FormatDuplicateError(err),
+			})
+		}
+		// Иначе — серверная ошибка
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "не удалось создать товар",
 		})
 	}
@@ -104,18 +113,28 @@ func AdminCreateProduct(c *fiber.Ctx) error {
 //	Если ошибка — 500.
 //	Если нашёлся — отдаём { "item": product }.
 func AdminGetProduct(c *fiber.Ctx) error {
-	// TODO: реализуй по описанию выше
-	// Подсказка — посмотри как сделан GetProduct в shop.go (то же самое, только GetByID вместо GetBySlug)
-	id := c.Params("id") 
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "id обязателен",
+		})
+	}
 
 	product, err := Repo.Products.GetByID(id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{ //500
+		// Если товар не найден (sql.ErrNoRows) — возвращаем 404
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "товар не найден",
+			})
+		}
+		// Иначе — серверная ошибка
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "ошибка при получении товара",
 		})
 	}
 	if product == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{ //404
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "товар не найден",
 		})
 	}
@@ -143,24 +162,41 @@ func AdminGetProduct(c *fiber.Ctx) error {
 //
 // Подсказка: посмотри как сделан UpdateProfile в account.go — похожая логика.
 func AdminUpdateProduct(c *fiber.Ctx) error {
-	// TODO: реализуй по описанию выше
 	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "id обязателен",
+		})
+	}
 
 	var product models.Product
 	if err := c.BodyParser(&product); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{ //400
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "невалидный JSON",
 		})
 	}
 
 	updated, err := Repo.Products.Update(id, &product)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{ //500
-			"error": "не удалось обновить товар (ошибка БД)",
+		// Если товар не найден (sql.ErrNoRows) — возвращаем 404
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "товар не найден",
+			})
+		}
+		// Проверяем на duplicate key (slug уже занят другим товаром)
+		if utils.IsDuplicateKeyError(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": utils.FormatDuplicateError(err),
+			})
+		}
+		// Иначе — серверная ошибка
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "не удалось обновить товар",
 		})
 	}
 	if updated == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{ //404
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "товар не найден",
 		})
 	}
@@ -181,11 +217,21 @@ func AdminUpdateProduct(c *fiber.Ctx) error {
 //	Если ошибка — 500.
 //	Если удалился — вернуть { "message": "ok" }.
 func AdminDeleteProduct(c *fiber.Ctx) error {
-	// TODO: реализуй по описанию выше
 	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "id обязателен",
+		})
+	}
 
 	if err := Repo.Products.Delete(id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{ //500
+		// Проверяем на "не найден" (репозиторий возвращает ошибку если affected == 0)
+		if strings.Contains(err.Error(), "не найден") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "товар не найден",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "не удалось удалить товар",
 		})
 	}
@@ -270,8 +316,12 @@ func AdminCreateGalleryItem(c *fiber.Ctx) error {
 //	Repo.Gallery.Update(id, &item) — UPDATE gallery_items SET ... WHERE id = $1 RETURNING *.
 //	Не нашёлся → 404, ошибка → 500, ок → обновлённый элемент.
 func AdminUpdateGalleryItem(c *fiber.Ctx) error {
-	// TODO: реализуй по описанию выше
 	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "id обязателен",
+		})
+	}
 
 	var item models.GalleryItem
 	if err := c.BodyParser(&item); err != nil {
@@ -282,6 +332,13 @@ func AdminUpdateGalleryItem(c *fiber.Ctx) error {
 
 	updated, err := Repo.Gallery.Update(id, &item)
 	if err != nil {
+		// Если элемент не найден (sql.ErrNoRows) — возвращаем 404
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "элемент галереи не найден",
+			})
+		}
+		// Иначе — серверная ошибка
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "не удалось обновить элемент галереи",
 		})
@@ -305,10 +362,20 @@ func AdminUpdateGalleryItem(c *fiber.Ctx) error {
 //	RowsAffected == 0 → 404, ошибка → 500, ок → { "message": "ok" }.
 //	Один в один как AdminDeleteProduct.
 func AdminDeleteGalleryItem(c *fiber.Ctx) error {
-	// TODO: реализуй по описанию выше
 	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "id обязателен",
+		})
+	}
 
 	if err := Repo.Gallery.Delete(id); err != nil {
+		// Проверяем на "не найден"
+		if strings.Contains(err.Error(), "не найден") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "элемент галереи не найден",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "не удалось удалить элемент галереи",
 		})
@@ -353,8 +420,12 @@ func AdminListPages(c *fiber.Ctx) error {
 //
 // Отличие от товаров: тут slug вместо id, потому что у страниц slug — это первичный ключ.
 func AdminUpdatePage(c *fiber.Ctx) error {
-	// TODO: реализуй по описанию выше
 	slug := c.Params("slug")
+	if slug == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "slug обязателен",
+		})
+	}
 
 	var page models.Page
 	if err := c.BodyParser(&page); err != nil {
@@ -365,6 +436,13 @@ func AdminUpdatePage(c *fiber.Ctx) error {
 
 	updated, err := Repo.Pages.Update(slug, &page)
 	if err != nil {
+		// Если страница не найдена (sql.ErrNoRows) — возвращаем 404
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "страница не найдена",
+			})
+		}
+		// Иначе — серверная ошибка
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "не удалось обновить страницу",
 		})

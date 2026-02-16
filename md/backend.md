@@ -784,34 +784,396 @@ func (r *ProductSQLRepo) Delete(id string) error {
 ## Хендлеры галереи: `backend/internal/handlers/gallery.go`
 
 **Как работают сейчас**
-- Читают `category` из `?category=...` (если пусто — вернуть все или дефолтную категорию — на твой выбор).
-- Вызывают `Repo.Gallery.ListByCategory(category)`.
-- Возвращают `{ "items": [...] }`.
+- `GetGalleryItems`:
+  - читает query‑параметр `category` из `?category=intro` (или `tattoo`, `tokyo`, и т.д.);
+  - если `category` пустой (`""`), нужно решить что возвращать:
+    - **Вариант 1**: вернуть все элементы галереи (все категории);
+    - **Вариант 2**: вернуть дефолтную категорию (например, `"intro"`).
+  - вызывает `Repo.Gallery.ListByCategory(category)`;
+  - возвращает JSON: `{ "items": [...] }`.
 
-**TODO**
-- В репозитории:
-  - если `category == ""` → вернуть все или только “intro”;
-  - добавить сортировку по полю `Order`.
-- В хендлере:
-  - обрабатывать ошибку репозитория (500).
+**TODO — что нужно сделать**
+
+### 1. В репозитории (`postgres_gallery.go`): метод `ListByCategory`
+
+**Проблема:** сейчас метод `ListByCategory` всегда требует `category` и делает `WHERE category = $1`. Если `category == ""`, запрос не найдёт ничего или вернёт ошибку.
+
+**Решение — два варианта:**
+
+#### Вариант А: Если `category == ""` → вернуть все элементы
+
+```go
+func (r *GallerySQLRepo) ListByCategory(category string) ([]models.GalleryItem, error) {
+    var query string
+    var args []interface{}
+    
+    if category == "" {
+        // Если категория не указана — возвращаем все элементы
+        query = `SELECT id, category, title, image, sort_order
+                 FROM gallery_items 
+                 ORDER BY sort_order ASC`
+        // args остаётся пустым
+    } else {
+        // Если категория указана — фильтруем по ней
+        query = `SELECT id, category, title, image, sort_order
+                 FROM gallery_items 
+                 WHERE category = $1 
+                 ORDER BY sort_order ASC`
+        args = []interface{}{category}
+    }
+    
+    rows, err := r.db.Query(query, args...)
+    // ... остальной код как обычно
+}
+```
+
+**Как это читается:**
+- Если `category == ""` → делаем SELECT без WHERE, получаем все элементы.
+- Если `category != ""` → делаем SELECT с `WHERE category = $1`, получаем только элементы этой категории.
+- В обоих случаях сортируем по `sort_order ASC` (чтобы админ мог расставлять порядок вручную).
+
+#### Вариант Б: Если `category == ""` → вернуть только дефолтную категорию (например, "intro")
+
+```go
+func (r *GallerySQLRepo) ListByCategory(category string) ([]models.GalleryItem, error) {
+    // Если категория не указана — используем дефолтную
+    if category == "" {
+        category = "intro"
+    }
+    
+    query := `SELECT id, category, title, image, sort_order
+              FROM gallery_items 
+              WHERE category = $1 
+              ORDER BY sort_order ASC`
+    
+    rows, err := r.db.Query(query, category)
+    // ... остальной код
+}
+```
+
+**Как это читается:**
+- Если `category == ""` → подставляем `"intro"` как дефолт.
+- Всегда делаем `WHERE category = $1` (теперь `category` гарантированно не пустой).
+- Сортируем по `sort_order ASC`.
+
+**Рекомендация:** используй **Вариант А** (вернуть все), если фронтенд может показывать галерею без фильтра по категории. Если фронтенд всегда требует категорию — используй **Вариант Б** (дефолт "intro").
+
+**Важно:** сортировка по `sort_order ASC` уже есть в текущем коде репозитория, но убедись что она работает корректно. Поле `sort_order` в БД соответствует полю `Order` в структуре `models.GalleryItem`.
+
+### 2. В хендлере (`gallery.go`): обработка ошибок
+
+**Проблема:** сейчас ошибка из `Repo.Gallery.ListByCategory(category)` игнорируется (`items, _ := ...`). Если БД упадёт или произойдёт другая ошибка, клиент получит пустой массив вместо понятного сообщения об ошибке.
+
+**Решение:**
+
+```go
+func GetGalleryItems(c *fiber.Ctx) error {
+    category := c.Query("category", "")
+    
+    items, err := Repo.Gallery.ListByCategory(category)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "ошибка при получении элементов галереи",
+        })
+    }
+    
+    // Если items == nil, возвращаем пустой массив (не ошибка)
+    if items == nil {
+        items = []models.GalleryItem{}
+    }
+    
+    return c.JSON(fiber.Map{"items": items})
+}
+```
+
+**Как это читается:**
+1. Читаем `category` из query (если не указан — будет `""`).
+2. Вызываем репозиторий и **проверяем ошибку**.
+3. Если ошибка → возвращаем `500` с JSON `{"error": "..."}`.
+4. Если ошибки нет, но `items == nil` → возвращаем пустой массив `[]models.GalleryItem{}` (это нормально, если в БД нет элементов).
+5. Иначе возвращаем `{"items": [...]}`.
+
+**Не забудь:**
+- Добавить импорт `socialsh/backend/internal/models` в `gallery.go` (для типа `[]models.GalleryItem{}`).
+- По аналогии с `shop.go` и `account.go` — используй `fiber.Map{"error": "..."}` для ошибок.
+
+### 3. Дополнительно (опционально)
+
+- **Валидация категории:** если фронтенд знает список допустимых категорий (`intro`, `tattoo`, `tokyo`, и т.д.), можно добавить проверку:
+  ```go
+  validCategories := map[string]bool{
+      "intro": true,
+      "tattoo": true,
+      "tokyo": true,
+  }
+  if category != "" && !validCategories[category] {
+      return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+          "error": "недопустимая категория",
+      })
+  }
+  ```
+- **Кэширование:** если галерея редко меняется, можно закэшировать результаты на уровне хендлера (например, в памяти или Redis).
 
 ---
 
 ## Хендлеры статических страниц: `backend/internal/handlers/pages.go`
 
 **Как работают сейчас**
-- Читают `slug` из `/:slug` (`payment`, `delivery`, `returns`, `contacts`).
-- Вызывают `Repo.Pages.GetBySlug(slug)`.
-- Если страница не найдена → `404`.
-- Если найдена → возвращают структуру `Page` как JSON.
+- `GetPage`:
+  - читает `slug` из URL‑параметра `/:slug` (например, `/api/pages/payment`, `/api/pages/delivery`, `/api/pages/returns`, `/api/pages/contacts`);
+  - вызывает `Repo.Pages.GetBySlug(slug)`;
+  - если страница не найдена (`page == nil`) → возвращает `404`;
+  - если найдена → возвращает структуру `Page` как JSON напрямую (без обёртки `{"page": ...}`).
 
-**TODO**
-- В репозитории решить, где хранятся текстовые страницы:
-  - в БД (таблица `pages`);
-  - в файловой системе (например, Markdown‑файлы);
-  - в памяти (если их мало и они редко меняются).
-- Если выберешь Markdown‑файлы:
-  - можно положить их в отдельную папку и подгружать при старте сервера или по запросу.
+**TODO — что нужно сделать**
+
+### 1. Решить, где хранить текстовые страницы
+
+**Варианты:**
+
+#### Вариант А: В БД (таблица `pages`) — **РЕКОМЕНДУЕТСЯ**
+
+**Плюсы:**
+- Админ может редактировать страницы через админ‑панель (без деплоя).
+- Единая точка хранения (всё в БД).
+- Легко версионировать через `updated_at`.
+
+**Минусы:**
+- Нужно создать таблицу и миграции.
+- Длинные тексты занимают место в БД.
+
+**Реализация:**
+
+1. **SQL‑схема:**
+```sql
+CREATE TABLE pages (
+    slug VARCHAR(50) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Начальные данные
+INSERT INTO pages (slug, title, content) VALUES
+('payment', 'Оплата', 'Здесь будет текст про оплату...'),
+('delivery', 'Доставка', 'Здесь будет текст про доставку...'),
+('returns', 'Возврат', 'Здесь будет текст про возврат...'),
+('contacts', 'Контакты', 'Здесь будет текст про контакты...');
+```
+
+2. **Репозиторий уже реализован** в `postgres_pages.go`:
+   - `GetBySlug(slug)` — делает `SELECT slug, title, content FROM pages WHERE slug = $1`.
+   - `ListAll()` — для админ‑панели.
+   - `Update(slug, page)` — для редактирования через админку.
+
+3. **Хендлер нужно доработать** (см. ниже).
+
+#### Вариант Б: В файловой системе (Markdown‑файлы)
+
+**Плюсы:**
+- Версионирование через Git.
+- Легко редактировать в любом редакторе.
+
+**Минусы:**
+- Нужен деплой для изменения текста.
+- Нет админ‑панели для редактирования.
+
+**Реализация:**
+
+1. **Структура файлов:**
+```
+backend/
+  content/
+    pages/
+      payment.md
+      delivery.md
+      returns.md
+      contacts.md
+```
+
+2. **Реализация репозитория** (новый файл `file_pages.go`):
+```go
+package repository
+
+import (
+    "os"
+    "path/filepath"
+    "socialsh/backend/internal/models"
+    "github.com/russross/blackfriday/v2" // для Markdown → HTML
+)
+
+type PageFileRepo struct {
+    contentDir string
+}
+
+func NewPageFileRepo(contentDir string) *PageFileRepo {
+    return &PageFileRepo{contentDir: contentDir}
+}
+
+func (r *PageFileRepo) GetBySlug(slug string) (*models.Page, error) {
+    filePath := filepath.Join(r.contentDir, "pages", slug+".md")
+    
+    content, err := os.ReadFile(filePath)
+    if err != nil {
+        if os.IsNotExist(err) {
+            return nil, sql.ErrNoRows // страница не найдена
+        }
+        return nil, err
+    }
+    
+    // Парсим Markdown → HTML (опционально)
+    html := blackfriday.Run(content)
+    
+    return &models.Page{
+        Slug:    slug,
+        Title:   extractTitle(content), // первая строка как заголовок
+        Content: string(html),
+    }, nil
+}
+```
+
+3. **В `main.go`** инициализировать:
+```go
+pagesRepo := repository.NewPageFileRepo("./content")
+store := &repository.Store{
+    Pages: pagesRepo,
+    // ...
+}
+```
+
+#### Вариант В: В памяти (hardcoded)
+
+**Плюсы:**
+- Самый простой вариант для старта.
+
+**Минусы:**
+- Нужен редеплой для изменения текста.
+- Не масштабируется.
+
+**Реализация:**
+
+```go
+// В postgres_pages.go или отдельном файле
+type PageMemoryRepo struct {
+    pages map[string]*models.Page
+}
+
+func NewPageMemoryRepo() *PageMemoryRepo {
+    return &PageMemoryRepo{
+        pages: map[string]*models.Page{
+            "payment": {
+                Slug:    "payment",
+                Title:   "Оплата",
+                Content: "Здесь текст про оплату...",
+            },
+            "delivery": {
+                Slug:    "delivery",
+                Title:   "Доставка",
+                Content: "Здесь текст про доставку...",
+            },
+            // ...
+        },
+    }
+}
+
+func (r *PageMemoryRepo) GetBySlug(slug string) (*models.Page, error) {
+    page, ok := r.pages[slug]
+    if !ok {
+        return nil, sql.ErrNoRows
+    }
+    return page, nil
+}
+```
+
+**Рекомендация:** используй **Вариант А (БД)**, потому что:
+- Репозиторий уже реализован в `postgres_pages.go`.
+- Админ сможет редактировать страницы через админ‑панель.
+- Это стандартный подход для CMS.
+
+### 2. Доработать хендлер (`pages.go`)
+
+**Проблема:** сейчас ошибка из `Repo.Pages.GetBySlug(slug)` игнорируется (`page, _ := ...`). Если страница не найдена, репозиторий вернёт `sql.ErrNoRows`, но хендлер проверяет только `if page == nil`.
+
+**Решение:**
+
+```go
+package handlers
+
+import (
+    "database/sql"
+    "github.com/gofiber/fiber/v2"
+    "socialsh/backend/internal/repository"
+)
+
+func GetPage(c *fiber.Ctx) error {
+    slug := c.Params("slug")
+    
+    // Валидация slug
+    if slug == "" {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "slug обязателен",
+        })
+    }
+    
+    page, err := Repo.Pages.GetBySlug(slug)
+    if err != nil {
+        // Если страница не найдена (sql.ErrNoRows) — возвращаем 404
+        if err == sql.ErrNoRows {
+            return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+                "error": "страница не найдена",
+            })
+        }
+        // Иначе — серверная ошибка
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "ошибка при получении страницы",
+        })
+    }
+    
+    // Если page == nil (на всякий случай)
+    if page == nil {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+            "error": "страница не найдена",
+        })
+    }
+    
+    // Возвращаем страницу как JSON (без обёртки)
+    return c.JSON(page)
+}
+```
+
+**Как это читается:**
+1. Читаем `slug` из URL‑параметра.
+2. Проверяем что `slug` не пустой → если пустой, возвращаем `400`.
+3. Вызываем репозиторий и **проверяем ошибку**.
+4. Если `sql.ErrNoRows` → страница не найдена, возвращаем `404`.
+5. Если другая ошибка → серверная ошибка, возвращаем `500`.
+6. Если всё ОК → возвращаем `page` как JSON.
+
+**Не забудь:**
+- Добавить импорт `database/sql` для проверки `sql.ErrNoRows`.
+- По аналогии с `shop.go` и `account.go` — используй `fiber.Map{"error": "..."}` для ошибок.
+
+### 3. Дополнительно (опционально)
+
+- **Валидация slug:** можно добавить whitelist допустимых slug'ов:
+  ```go
+  validSlugs := map[string]bool{
+      "payment": true,
+      "delivery": true,
+      "returns": true,
+      "contacts": true,
+  }
+  if !validSlugs[slug] {
+      return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+          "error": "недопустимый slug",
+      })
+  }
+  ```
+
+- **Кэширование:** если страницы редко меняются, можно закэшировать их в памяти на уровне хендлера или репозитория.
+
+- **Markdown поддержка:** если хранишь контент в БД как Markdown, можно парсить его в HTML на лету (используй библиотеку типа `github.com/russross/blackfriday/v2`).
 
 ---
 
@@ -820,25 +1182,377 @@ func (r *ProductSQLRepo) Delete(id string) error {
 **Как работают сейчас**
 - Используют `Repo.Account`.
 - `GetAccountMe`:
-  - ожидает, что в `c.Locals("userID")` лежит ID пользователя (это должен сделать auth‑middleware, которого пока нет);
+  - ожидает, что в `c.Locals("userID")` лежит ID пользователя (это должен сделать auth‑middleware);
   - вызывает `Repo.Account.GetUserByID(userID)`;
-  - если пользователь не найден → `401 Unauthorized`;
-  - иначе `{ "user": { ... } }`.
+  - если пользователь не найден → `404 Not Found`;
+  - иначе возвращает `{ "user": { "id", "email", "name", "role" } }`.
 - `GetOrders`:
-  - берёт тот же `userID`;
+  - берёт тот же `userID` из `c.Locals("userID")`;
   - вызывает `Repo.Account.ListOrdersByUser(userID)`;
-  - возвращает `{ "items": [ ... ] }`.
+  - возвращает `{ "items": [ { "id", "userId", "status", "total", "createdAt", "items": [...] }, ... ] }`.
+- `UpdateProfile`:
+  - принимает PATCH‑запрос с частичными данными (`name` и/или `email`);
+  - вызывает `Repo.Account.UpdateUser(userID, &req)`;
+  - возвращает обновлённого пользователя.
 
-**TODO**
-- Реализовать авторизацию:
-  - middleware, который:
-    - читает токен из заголовка/куки;
-    - валидирует его;
-    - кладёт `userID` в `c.Locals("userID")`;
-  - повесить middleware на группу `api.Group("/account")`.
-- Реализация методов репозитория:
-  - `GetUserByID` → выборка из `users`;
-  - `ListOrdersByUser` → выборка из `orders` по `user_id` с сортировкой по дате.
+**TODO — что нужно сделать**
+
+### 1. Реализовать middleware авторизации (`middleware/auth.go`)
+
+**Проблема:** хендлеры `GetAccountMe`, `GetOrders`, `UpdateProfile` ожидают что `userID` уже лежит в `c.Locals("userID")`, но middleware который это делает — ещё не реализован.
+
+**Решение:**
+
+Middleware уже реализован в `backend/internal/middleware/auth.go`! Проверь что он работает так:
+
+```go
+package middleware
+
+import (
+    "github.com/gofiber/fiber/v2"
+    "github.com/golang-jwt/jwt/v5"
+)
+
+// Protected — middleware для проверки JWT токена.
+// Читает токен из заголовка Authorization: Bearer <token>.
+// Если токен валидный — кладёт userID в c.Locals("userID").
+// Если токен невалидный или отсутствует — возвращает 401.
+func Protected(jwtSecret string) fiber.Handler {
+    return func(c *fiber.Ctx) error {
+        // Читаем токен из заголовка
+        authHeader := c.Get("Authorization")
+        if authHeader == "" {
+            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+                "error": "токен не предоставлен",
+            })
+        }
+        
+        // Убираем префикс "Bearer "
+        tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+        if tokenString == authHeader {
+            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+                "error": "неверный формат токена",
+            })
+        }
+        
+        // Парсим и валидируем токен
+        token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+            return []byte(jwtSecret), nil
+        })
+        if err != nil || !token.Valid {
+            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+                "error": "невалидный токен",
+            })
+        }
+        
+        // Извлекаем claims (userID и role)
+        claims, ok := token.Claims.(jwt.MapClaims)
+        if !ok {
+            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+                "error": "неверный формат токена",
+            })
+        }
+        
+        userID, ok := claims["userID"].(string)
+        if !ok {
+            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+                "error": "токен не содержит userID",
+            })
+        }
+        
+        // Кладём userID и role в контекст
+        c.Locals("userID", userID)
+        c.Locals("role", claims["role"])
+        
+        return c.Next()
+    }
+}
+```
+
+**Как это читается:**
+1. Читаем заголовок `Authorization: Bearer <token>`.
+2. Убираем префикс `"Bearer "`.
+3. Парсим JWT токен с секретом из конфига.
+4. Если токен валидный → извлекаем `userID` и `role` из claims.
+5. Кладём их в `c.Locals("userID")` и `c.Locals("role")`.
+6. Вызываем `c.Next()` — передаём управление следующему хендлеру.
+7. Если на любом этапе ошибка → возвращаем `401 Unauthorized`.
+
+**Важно:** middleware должен быть зарегистрирован в `routes.go` на группу `/api/account`:
+
+```go
+// В routes.go
+func accountRoutes(app *fiber.App, jwtSecret string) {
+    account := app.Group("/api/account")
+    account.Use(middleware.Protected(jwtSecret)) // ← middleware здесь
+    
+    account.Get("/me", handlers.GetAccountMe)
+    account.Get("/orders", handlers.GetOrders)
+    account.Patch("/me", handlers.UpdateProfile)
+}
+```
+
+### 2. Реализация методов репозитория
+
+**Хорошая новость:** все методы уже реализованы в `postgres_account.go`! Проверь что они работают так:
+
+#### `GetUserByID` — выборка пользователя по ID
+
+```go
+func (r *AccountSQLRepo) GetUserByID(id string) (*models.User, error) {
+    query := `SELECT id, email, name, password_hash, role 
+              FROM users WHERE id = $1`
+    
+    var u models.User
+    err := r.db.QueryRow(query, id).Scan(
+        &u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Role,
+    )
+    if err != nil {
+        return nil, fmt.Errorf("account.GetUserByID: %w", err)
+    }
+    return &u, nil
+}
+```
+
+**Как это читается:**
+- Делаем `SELECT` одной строки по `id`.
+- Сканируем все поля в структуру `models.User`.
+- Если не найдено → вернётся `sql.ErrNoRows`.
+
+#### `ListOrdersByUser` — выборка заказов пользователя с позициями
+
+**Это самый сложный метод**, потому что нужно:
+1. Получить все заказы пользователя из таблицы `orders`.
+2. Для каждого заказа подгрузить позиции из таблицы `order_items`.
+
+```go
+func (r *AccountSQLRepo) ListOrdersByUser(id string) ([]models.Order, error) {
+    // Этап 1: Получаем все заказы
+    ordersQuery := `SELECT id, user_id, status, total, created_at, updated_at
+                    FROM orders WHERE user_id = $1 ORDER BY created_at DESC`
+    
+    rows, err := r.db.Query(ordersQuery, id)
+    if err != nil {
+        return nil, fmt.Errorf("account.ListOrdersByUser query orders: %w", err)
+    }
+    defer rows.Close()
+    
+    orders := []models.Order{}
+    for rows.Next() {
+        var o models.Order
+        err := rows.Scan(
+            &o.ID, &o.UserID, &o.Status, &o.Total,
+            &o.CreatedAt, &o.UpdatedAt,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("account.ListOrdersByUser scan order: %w", err)
+        }
+        o.Items = []models.OrderItem{} // инициализируем пустой слайс
+        orders = append(orders, o)
+    }
+    
+    if err := rows.Err(); err != nil {
+        return nil, fmt.Errorf("account.ListOrdersByUser rows: %w", err)
+    }
+    
+    // Этап 2: Для каждого заказа подгружаем позиции
+    itemsQuery := `SELECT id, order_id, product_id, title, price, quantity
+                   FROM order_items WHERE order_id = $1`
+    
+    for i := range orders {
+        itemRows, err := r.db.Query(itemsQuery, orders[i].ID)
+        if err != nil {
+            return nil, fmt.Errorf("account.ListOrdersByUser query items: %w", err)
+        }
+        
+        for itemRows.Next() {
+            var item models.OrderItem
+            err := itemRows.Scan(
+                &item.ID, &item.OrderID, &item.ProductID,
+                &item.Title, &item.Price, &item.Quantity,
+            )
+            if err != nil {
+                itemRows.Close()
+                return nil, fmt.Errorf("account.ListOrdersByUser scan item: %w", err)
+            }
+            orders[i].Items = append(orders[i].Items, item)
+        }
+        
+        if err := itemRows.Err(); err != nil {
+            itemRows.Close()
+            return nil, fmt.Errorf("account.ListOrdersByUser itemRows: %w", err)
+        }
+        
+        itemRows.Close()
+    }
+    
+    return orders, nil
+}
+```
+
+**Как это читается:**
+1. **Этап 1:** делаем `SELECT` всех заказов пользователя, сортируем по `created_at DESC` (новые сверху).
+2. Сканируем каждый заказ в `models.Order`, инициализируем `Items` как пустой слайс.
+3. **Этап 2:** для каждого заказа делаем отдельный `SELECT` позиций из `order_items`.
+4. Сканируем каждую позицию в `models.OrderItem` и добавляем в `orders[i].Items`.
+5. Возвращаем полный список заказов с позициями.
+
+**Альтернатива (более оптимально):** можно сделать один запрос с `JOIN`, а потом группировать в Go:
+
+```sql
+SELECT 
+    o.id, o.user_id, o.status, o.total, o.created_at, o.updated_at,
+    oi.id, oi.order_id, oi.product_id, oi.title, oi.price, oi.quantity
+FROM orders o
+LEFT JOIN order_items oi ON o.id = oi.order_id
+WHERE o.user_id = $1
+ORDER BY o.created_at DESC, oi.id
+```
+
+Но для старта двухэтапный вариант проще и понятнее.
+
+#### `UpdateUser` — частичное обновление профиля
+
+**Уже реализован** в `postgres_account.go`. Работает через динамический SQL:
+
+```go
+func (r *AccountSQLRepo) UpdateUser(id string, req *models.UpdateProfileRequest) (*models.User, error) {
+    setClauses := []string{}
+    args := []interface{}{}
+    argIdx := 1
+    
+    if req.Name != nil {
+        setClauses = append(setClauses, fmt.Sprintf("name = $%d", argIdx))
+        args = append(args, *req.Name)
+        argIdx++
+    }
+    
+    if req.Email != nil {
+        setClauses = append(setClauses, fmt.Sprintf("email = $%d", argIdx))
+        args = append(args, *req.Email)
+        argIdx++
+    }
+    
+    if len(setClauses) == 0 {
+        return r.GetUserByID(id) // ничего не обновляем
+    }
+    
+    query := fmt.Sprintf(
+        "UPDATE users SET %s WHERE id = $%d RETURNING id, email, name, password_hash, role",
+        strings.Join(setClauses, ", "), argIdx,
+    )
+    args = append(args, id)
+    
+    var u models.User
+    err := r.db.QueryRow(query, args...).Scan(
+        &u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Role,
+    )
+    if err != nil {
+        return nil, fmt.Errorf("account.UpdateUser: %w", err)
+    }
+    
+    return &u, nil
+}
+```
+
+**Как это читается:**
+- Если `req.Name != nil` → добавляем `"name = $1"` в SET.
+- Если `req.Email != nil` → добавляем `"email = $2"` в SET.
+- Если ничего не прислали → просто возвращаем текущего пользователя.
+- Выполняем `UPDATE ... RETURNING ...` и сканируем обновлённые данные.
+
+### 3. Проверить что хендлеры правильно обрабатывают ошибки
+
+**Хендлеры уже реализованы** в `account.go`, но убедись что они работают так:
+
+```go
+func GetAccountMe(c *fiber.Ctx) error {
+    userID, _ := c.Locals("userID").(string)
+    
+    user, err := Repo.Account.GetUserByID(userID)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "ошибка при получении профиля",
+        })
+    }
+    if user == nil {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+            "error": "пользователь не найден",
+        })
+    }
+    
+    return c.JSON(fiber.Map{"user": user})
+}
+```
+
+**Важно:** хендлеры должны проверять что `userID` не пустой (на случай если middleware не сработал):
+
+```go
+userID, ok := c.Locals("userID").(string)
+if !ok || userID == "" {
+    return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+        "error": "не авторизован",
+    })
+}
+```
+
+### 4. SQL‑схема для таблиц `users`, `orders`, `order_items`
+
+**Если ещё не создал таблицы, вот пример схемы:**
+
+```sql
+-- Таблица пользователей
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'user', -- 'user' или 'admin'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица заказов
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending', -- pending | paid | shipped | delivered | cancelled
+    total BIGINT NOT NULL, -- сумма в копейках (4990 = 49.90 ₽)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица позиций заказа
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL, -- ссылка на products.id (можно добавить FOREIGN KEY)
+    title VARCHAR(255) NOT NULL, -- название товара НА МОМЕНТ покупки
+    price BIGINT NOT NULL, -- цена за 1 шт. на момент покупки (в копейках)
+    quantity INTEGER NOT NULL DEFAULT 1
+);
+
+-- Индексы для производительности
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+```
+
+### 5. Дополнительно (опционально)
+
+- **Валидация email:** перед обновлением профиля можно проверить формат email:
+  ```go
+  if req.Email != nil {
+      if !isValidEmail(*req.Email) {
+          return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+              "error": "невалидный email",
+          })
+      }
+  }
+  ```
+
+- **Логирование:** можно добавить логирование действий пользователя (кто и когда обновил профиль, посмотрел заказы).
+
+- **Пагинация для заказов:** если заказов много, можно добавить пагинацию в `GetOrders` (аналогично `GetProducts`).
 
 ---
 
